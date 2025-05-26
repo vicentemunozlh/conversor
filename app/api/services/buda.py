@@ -1,65 +1,8 @@
-from typing import Union
-from enum import Enum
-
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import HTTPException
 import httpx
 
-# Supuestos:
-# - Case sensitive for the currencies, we expect the currencies to be in uppercase.
-# - No se considera el minimum_order_amount
 
-app = FastAPI()
-
-
-class Currency(str, Enum):
-    CLP = "CLP"
-    PEN = "PEN"
-    COP = "COP"
-
-
-@app.get(
-    "/best-conversion",
-    summary="Obtener la mejor tasa de conversión entre monedas",
-    description="""
-    Convierte entre las monedas CLP, PEN y COP usando la mejor tasa disponible.
-    
-    **IMPORTANTE**: Las monedas deben ser ingresadas en MAYÚSCULAS (CLP, PEN, COP).
-    """,
-)
-async def best_conversion(
-    origin_crypto: Currency = Query(
-        ..., description="Moneda de origen (debe ser CLP, PEN o COP en MAYÚSCULAS)"
-    ),
-    destination_crypto: Currency = Query(
-        ..., description="Moneda de destino (debe ser CLP, PEN o COP en MAYÚSCULAS)"
-    ),
-    amount: float = Query(..., description="Monto a convertir de la moneda de origen"),
-):
-    try:
-        final_amount, intermediary = await get_most_destination_crypto_from_amount(
-            origin_crypto, destination_crypto, amount
-        )
-        if final_amount is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No conversion path found for {origin_crypto}-{destination_crypto}",
-            )
-
-        return {
-            "monto": final_amount,
-            "moneda_destino": destination_crypto,
-            "moneda_intermediaria": intermediary,
-        }
-    except HTTPException as e:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error processing conversion: {str(e)}"
-        )
-
-
-async def call_external_api(url: str, params: dict = None):
+async def _call_external_api(url: str, params: dict = None):
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(url, params=params)
@@ -72,15 +15,15 @@ async def call_external_api(url: str, params: dict = None):
             )
 
 
-async def get_all_tickers():
+async def _get_all_tickers():
     url = "https://www.buda.com/api/v2/tickers"
-    return await call_external_api(url)
+    return await _call_external_api(url)
 
 
 async def get_most_destination_crypto_from_amount(
     origin_crypto: str, destination_crypto: str, amount: float
 ):
-    tickers = await get_all_tickers()
+    tickers = await _get_all_tickers()
     # We store the tickers in a dictionary for O(1) lookup time.
     tickers_dict = {}
 
@@ -90,13 +33,13 @@ async def get_most_destination_crypto_from_amount(
     for ticker in tickers["tickers"]:
         # Does the direct market exist?
         if ticker["market_id"] == market_id:
-            to_amount = calculate_to_amount_from_ticker(
+            to_amount = _calculate_to_amount_from_ticker(
                 ticker["last_price"], amount, origin_crypto, destination_crypto
             )
             return to_amount, None
         # Does the inverse market exist?
         if ticker["market_id"] == inverse_market_id:
-            to_amount = calculate_to_amount_from_ticker(
+            to_amount = _calculate_to_amount_from_ticker(
                 ticker["last_price"], amount, origin_crypto, destination_crypto
             )
             return to_amount, None
@@ -120,7 +63,7 @@ async def get_most_destination_crypto_from_amount(
             continue
 
         # Calculate the amount of the intermediary currency from the from_amount.
-        intermediary_amount = calculate_to_amount_from_ticker(
+        intermediary_amount = _calculate_to_amount_from_ticker(
             last_price, amount, intermediary
         )
 
@@ -128,11 +71,11 @@ async def get_most_destination_crypto_from_amount(
         final_market_id = f"{intermediary}-{destination_crypto}"
         inverse_final_market_id = f"{destination_crypto}-{intermediary}"
         if final_market_id in tickers_dict:
-            possible_rate = calculate_to_amount_from_ticker(
+            possible_rate = _calculate_to_amount_from_ticker(
                 tickers_dict[final_market_id], intermediary_amount, destination_crypto
             )
         elif inverse_final_market_id in tickers_dict:
-            possible_rate = calculate_to_amount_from_ticker(
+            possible_rate = _calculate_to_amount_from_ticker(
                 tickers_dict[inverse_final_market_id],
                 intermediary_amount,
                 destination_crypto,
@@ -150,7 +93,7 @@ async def get_most_destination_crypto_from_amount(
 
 
 # In this function we expect the last_price to be of ticker of market_id origin_crypto-destination_crypto or destination_crypto-origin_crypto.
-def calculate_to_amount_from_ticker(
+def _calculate_to_amount_from_ticker(
     last_price: list, from_amount: float, destination_crypto: str
 ):
     price = last_price[0]
