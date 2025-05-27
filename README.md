@@ -55,3 +55,23 @@ Para ejecutar los tests del proyecto, asegúrate de que estás en el entorno vir
    ```bash
    pytest -v
    ```
+
+## Ejecución con Docker
+
+**NOTICE** La REST API estará expuesta en http://0.0.0.0:8000 para probar su uso facilmente. Podrás entrar a `http://localhost:8000/docs` para probar la API desde los docs. 
+
+### Requisitos
+- Docker
+
+### Pasos para ejecutar con Docker
+
+1. **Construir y ejecutar con Docker**:
+     ```bash
+   # Construir la imagen
+   docker build -t conversor .
+
+   # Ejecutar el contenedor
+   docker run --name conversor-api -p 8000:8000 conversor
+   ```
+
+La REST API estará disponible en `http://localhost:8000`
