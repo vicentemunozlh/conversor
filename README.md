@@ -74,4 +74,9 @@ Para ejecutar los tests del proyecto, asegúrate de que estás en el entorno vir
    docker run --name conversor-api -p 8000:8000 conversor
    ```
 
+2. **Ejecutar los tests**:
+   ```bash
+   docker run conversor pytest -v
+   ```
+
 La REST API estará disponible en `http://localhost:8000`
