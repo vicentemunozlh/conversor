@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query
-from app.api.services.buda import get_most_destination_crypto_from_amount
+from app.api.services.buda import get_most_destination_currency_from_amount
 from enum import Enum
 import httpx
+import logging
+from typing import Dict, Optional
 
 router = APIRouter()
 
@@ -16,16 +18,58 @@ class Currency(str, Enum):
     "/best-conversion",
     summary="Obtener la mejor tasa de conversión entre monedas",
     description="""
-    Convierte entre las monedas CLP, PEN y COP usando la mejor tasa disponible.
+    Convierte entre las monedas CLP, PEN y COP usando la conversion con 1 criptomoneda intermediaria.
     
     **IMPORTANTE**: Las monedas deben ser ingresadas en MAYÚSCULAS (CLP, PEN, COP).
     """,
+    responses={
+        200: {
+            "description": "Successful conversion",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "monto": 2.5,
+                        "moneda_destino": "PEN",
+                        "moneda_intermediaria": "BTC",
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "No conversion path found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "No conversion path found for CLP-PEN"}
+                }
+            },
+        },
+        503: {
+            "description": "External service unavailable",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Service temporarily unavailable. Please try again later."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal server error",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An unexpected error occurred. Please try again later."
+                    }
+                }
+            },
+        },
+    },
 )
 async def best_conversion(
-    origin_crypto: Currency = Query(
+    origin_currency: Currency = Query(
         ..., description="Moneda de origen (debe ser CLP, PEN o COP en MAYÚSCULAS)"
     ),
-    destination_crypto: Currency = Query(
+    destination_currency: Currency = Query(
         ..., description="Moneda de destino (debe ser CLP, PEN o COP en MAYÚSCULAS)"
     ),
     amount: float = Query(
@@ -35,31 +79,32 @@ async def best_conversion(
     ),
 ):
     try:
-        final_amount, intermediary = await get_most_destination_crypto_from_amount(
-            origin_crypto, destination_crypto, amount
+        final_amount, intermediary = await get_most_destination_currency_from_amount(
+            origin_currency, destination_currency, amount
         )
         if final_amount is None:
             raise HTTPException(
                 status_code=404,
-                detail=f"No conversion path found for {origin_crypto}-{destination_crypto}",
+                detail=f"No conversion path found for {origin_currency}-{destination_currency}",
             )
 
         return {
             "monto": final_amount,
-            "moneda_destino": destination_crypto,
+            "moneda_destino": destination_currency,
             "moneda_intermediaria": intermediary,
         }
-    except HTTPException as e:
-        # Re-raise HTTPExceptions to preserve their status code and detail
+    # We re-raise the HTTPException from no conversion path found.
+    except HTTPException:
         raise
-    except httpx.HTTPError as e:
-        # Always return 500 for external service errors
+    except httpx.HTTPError:
+        # External service errors
         raise HTTPException(
-            status_code=500,
-            detail=f"Service temporarily unavailable. Please try again later.",
+            status_code=503,  # Service Unavailable
+            detail="Service temporarily unavailable. Please try again later.",
         )
-    except Exception as e:
-        # Handle any other unexpected errors
+    except Exception:
+        # Truly unexpected errors
         raise HTTPException(
-            status_code=500, detail=f"Unexpected error processing conversion: {str(e)}"
+            status_code=500,  # Internal Server Error
+            detail="An unexpected error occurred. Please try again later.",
         )

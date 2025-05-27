@@ -10,7 +10,7 @@ def test_best_conversion_success(client, mock_conversion):
     mock_conversion.return_value = (1000.0, "BTC")
 
     response = client.get(
-        "/best-conversion?origin_crypto=CLP&destination_crypto=PEN&amount=1000"
+        "/best-conversion?origin_currency=CLP&destination_currency=PEN&amount=1000"
     )
 
     assert response.status_code == 200
@@ -25,7 +25,7 @@ def test_best_conversion_no_path(client, mock_conversion):
     mock_conversion.return_value = (None, None)
 
     response = client.get(
-        "/best-conversion?origin_crypto=CLP&destination_crypto=PEN&amount=1000"
+        "/best-conversion?origin_currency=CLP&destination_currency=PEN&amount=1000"
     )
 
     assert response.status_code == 404
@@ -36,9 +36,9 @@ def test_best_conversion_invalid_currency(client, mock_conversion):
     # We will call the endpoint with an invalid currency
     invalid_currency = "INVALID"
     response = client.get(
-        "/best-conversion?origin_crypto="
+        "/best-conversion?origin_currency="
         + invalid_currency
-        + "&destination_crypto=PEN&amount=1000"
+        + "&destination_currency=PEN&amount=1000"
     )
     assert response.status_code == 422  # Validation error
 
@@ -51,7 +51,7 @@ def test_best_conversion_invalid_currency(client, mock_conversion):
     # Check only the essential parts of the error
     error = error_details["detail"][0]
     assert error["input"] == "INVALID"
-    assert error["loc"] == ["query", "origin_crypto"]
+    assert error["loc"] == ["query", "origin_currency"]
     assert error["msg"] == "Input should be 'CLP', 'PEN' or 'COP'"
     assert "expected" in error["ctx"]
 
@@ -60,7 +60,7 @@ def test_best_conversion_invalid_amount(client, mock_conversion):
     # We will call the endpoint with an invalid amount
     invalid_amount = -1000
     response = client.get(
-        "/best-conversion?origin_crypto=CLP&destination_crypto=PEN&amount="
+        "/best-conversion?origin_currency=CLP&destination_currency=PEN&amount="
         + str(invalid_amount)
     )
     assert response.status_code == 422  # Validation error
@@ -83,11 +83,11 @@ def test_best_conversion_endpoint_returns_500_for_other_errors(client, mock_conv
     mock_conversion.side_effect = Exception("Test exception")
 
     response = client.get(
-        "/best-conversion?origin_crypto=CLP&destination_crypto=PEN&amount=1000"
+        "/best-conversion?origin_currency=CLP&destination_currency=PEN&amount=1000"
     )
     assert response.status_code == 500
     assert (
-        "Unexpected error processing conversion: Test exception"
+        "An unexpected error occurred. Please try again later."
         in response.json()["detail"]
     )
 
@@ -97,8 +97,11 @@ def test_best_conversion_external_api_error(client, mock_conversion):
     mock_conversion.side_effect = httpx.HTTPError("Connection failed")
 
     response = client.get(
-        "/best-conversion?origin_crypto=CLP&destination_crypto=PEN&amount=1000"
+        "/best-conversion?origin_currency=CLP&destination_currency=PEN&amount=1000"
     )
 
-    assert response.status_code == 500
-    assert "Service temporarily unavailable" in response.json()["detail"]
+    assert response.status_code == 503
+    assert (
+        "Service temporarily unavailable. Please try again later."
+        in response.json()["detail"]
+    )

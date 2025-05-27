@@ -22,29 +22,19 @@ async def _get_all_tickers():
     return await _call_external_api(url)
 
 
-async def get_most_destination_crypto_from_amount(
-    origin_crypto: str, destination_crypto: str, amount: float
+async def get_most_destination_currency_from_amount(
+    origin_currency: str, destination_currency: str, amount: float
 ):
+    """
+    Convert between fiat currencies (CLP, PEN, COP) using cryptocurrency markets as intermediaries.
+    Note: There are no direct markets between fiat currencies, so all conversions will use
+    cryptocurrency markets (like BTC-CLP, ETH-PEN, etc.) as intermediaries.
+    """
     tickers = await _get_all_tickers()
     # We store the tickers in a dictionary for O(1) lookup time.
     tickers_dict = {}
 
-    market_id = f"{origin_crypto}-{destination_crypto}"
-    inverse_market_id = f"{destination_crypto}-{origin_crypto}"
-
     for ticker in tickers["tickers"]:
-        # Does the direct market exist?
-        if ticker["market_id"] == market_id:
-            to_amount = _calculate_to_amount_from_ticker(
-                ticker["last_price"], amount, origin_crypto
-            )
-            return to_amount, None
-        # Does the inverse market exist?
-        if ticker["market_id"] == inverse_market_id:
-            to_amount = _calculate_to_amount_from_ticker(
-                ticker["last_price"], amount, origin_crypto
-            )
-            return to_amount, None
         # Store tickers in a dictionary for O(1) lookup time.
         tickers_dict[ticker["market_id"]] = ticker["last_price"]
 
@@ -53,36 +43,28 @@ async def get_most_destination_crypto_from_amount(
 
     for market_id, last_price in tickers_dict.items():
         # Split the market_id to get the currencies
-        first, second = market_id.split("-")
+        base, quote = market_id.split("-")
         intermediary = None
 
         # We need to see if the from currency is part of the market_id.
-        if first == origin_crypto:
-            intermediary = second
-        elif second == origin_crypto:
-            intermediary = first
+        if quote == origin_currency:
+            intermediary = base
         else:
             continue
 
         # Calculate the amount of the intermediary currency from the from_amount.
-        intermediary_amount = _calculate_to_amount_from_ticker(
-            last_price, amount, intermediary
+        intermediary_amount = _buy_intermediate_crypto(
+            last_price, amount, origin_currency
         )
 
-        # We need to see if the intermediary currency and the destination_crypto have a market_id.
-        final_market_id = f"{intermediary}-{destination_crypto}"
-        inverse_final_market_id = f"{destination_crypto}-{intermediary}"
+        # We need to see if the intermediary currency and the destination_currency have a market_id.
+        final_market_id = f"{intermediary}-{destination_currency}"
         if final_market_id in tickers_dict:
-            possible_rate = _calculate_to_amount_from_ticker(
-                tickers_dict[final_market_id], intermediary_amount, destination_crypto
-            )
-        elif inverse_final_market_id in tickers_dict:
-            possible_rate = _calculate_to_amount_from_ticker(
-                tickers_dict[inverse_final_market_id],
-                intermediary_amount,
-                destination_crypto,
+            possible_rate = _sell_intermediate_crypto(
+                tickers_dict[final_market_id], intermediary_amount, destination_currency
             )
         else:
+            # If the final_market_id is not in the tickers_dict, we continue to the next market_id.
             continue
 
         # We update the final_amount if its better than the current best_rate.
@@ -94,13 +76,25 @@ async def get_most_destination_crypto_from_amount(
     return best_rate, best_intermediary
 
 
-# In this function we expect the last_price to be of ticker of market_id origin_crypto-destination_crypto or destination_crypto-origin_crypto.
-def _calculate_to_amount_from_ticker(
-    last_price: list, from_amount: float, destination_crypto: str
+def _buy_intermediate_crypto(
+    last_price: list, currency_amount: float, origin_currency: str
 ):
     price = last_price[0]
-    crypto = last_price[1]
-    if crypto == destination_crypto:
-        return float(price) * from_amount
-    else:
-        return from_amount / float(price)
+    unit = last_price[1]
+    if unit != origin_currency:
+        raise ValueError(
+            f"The unit of the last_price is not the same as the origin_currency. {unit} != {origin_currency}"
+        )
+    return currency_amount / float(price)
+
+
+def _sell_intermediate_crypto(
+    last_price: list, crypto_amount: float, destination_currency: str
+):
+    price = last_price[0]
+    unit = last_price[1]
+    if unit != destination_currency:
+        raise ValueError(
+            f"The unit of the last_price is not the same as the origin_currency. {unit} != {destination_currency}"
+        )
+    return crypto_amount * float(price)
