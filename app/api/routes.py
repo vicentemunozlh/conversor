@@ -2,8 +2,6 @@ from fastapi import APIRouter, HTTPException, Query
 from app.api.services.buda import get_most_destination_currency_from_amount
 from enum import Enum
 import httpx
-import logging
-from typing import Dict, Optional
 
 router = APIRouter()
 
@@ -12,6 +10,35 @@ class Currency(str, Enum):
     CLP = "CLP"
     PEN = "PEN"
     COP = "COP"
+
+
+@router.get(
+    "/",
+    summary="API Status",
+    description="Retorna el estado actual de la API e información básica",
+    responses={
+        200: {
+            "description": "API is running",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "ok",
+                        "version": "0.0.1",
+                        "service": "Currency Conversion API",
+                        "endpoints": {"status": "/", "conversion": "/best-conversion"},
+                    }
+                }
+            },
+        }
+    },
+)
+async def get_status():
+    return {
+        "status": "ok",
+        "version": "0.0.1",
+        "service": "Currency Conversion API",
+        "endpoints": {"status": "/", "conversion": "/best-conversion"},
+    }
 
 
 @router.get(
