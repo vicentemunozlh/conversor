@@ -12,7 +12,7 @@ Se llevan a cabo conversiones utilizando la cryptomoneda como intercambio que ot
 - Se espera como máximo 1 intermediario.
 
 ## Requisitos Previos
-- Python 3.8 o superior
+- Python 3.9 o superior
 - pip (gestor de paquetes de Python)
 
 ## Instalación y Ejecución Local
