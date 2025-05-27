@@ -1,15 +1,17 @@
 from fastapi import HTTPException
 import httpx
+from typing import Optional
 
 
-async def _call_external_api(url: str, params: dict = None):
+async def _call_external_api(url: str, params: Optional[dict] = None):
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(url, params=params)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
-            status_code = e.response.status_code if hasattr(e, "response") else 500
+            status_code = getattr(e, "response", None)
+            status_code = status_code.status_code if status_code else 500
             raise HTTPException(
                 status_code=status_code, detail=f"External API error: {str(e)}"
             )
@@ -34,13 +36,13 @@ async def get_most_destination_crypto_from_amount(
         # Does the direct market exist?
         if ticker["market_id"] == market_id:
             to_amount = _calculate_to_amount_from_ticker(
-                ticker["last_price"], amount, origin_crypto, destination_crypto
+                ticker["last_price"], amount, origin_crypto
             )
             return to_amount, None
         # Does the inverse market exist?
         if ticker["market_id"] == inverse_market_id:
             to_amount = _calculate_to_amount_from_ticker(
-                ticker["last_price"], amount, origin_crypto, destination_crypto
+                ticker["last_price"], amount, origin_crypto
             )
             return to_amount, None
         # Store tickers in a dictionary for O(1) lookup time.

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from app.api.services.buda import get_most_destination_crypto_from_amount
 from enum import Enum
+import httpx
 
 router = APIRouter()
 
@@ -27,7 +28,11 @@ async def best_conversion(
     destination_crypto: Currency = Query(
         ..., description="Moneda de destino (debe ser CLP, PEN o COP en MAYÚSCULAS)"
     ),
-    amount: float = Query(..., description="Monto a convertir de la moneda de origen"),
+    amount: float = Query(
+        ...,
+        description="Monto a convertir de la moneda de origen",
+        gt=0,  # greater than 0
+    ),
 ):
     try:
         final_amount, intermediary = await get_most_destination_crypto_from_amount(
@@ -45,8 +50,16 @@ async def best_conversion(
             "moneda_intermediaria": intermediary,
         }
     except HTTPException as e:
+        # Re-raise HTTPExceptions to preserve their status code and detail
         raise
-    except Exception as e:
+    except httpx.HTTPError as e:
+        # Always return 500 for external service errors
         raise HTTPException(
-            status_code=500, detail=f"Error processing conversion: {str(e)}"
+            status_code=500,
+            detail=f"Service temporarily unavailable. Please try again later.",
+        )
+    except Exception as e:
+        # Handle any other unexpected errors
+        raise HTTPException(
+            status_code=500, detail=f"Unexpected error processing conversion: {str(e)}"
         )
