@@ -1,10 +1,13 @@
 # Conversión de monedas
 
-Utilizando Python y el framework FastAPI, realicé la tarea "Conversión de monedas". 
+Utilizando Python y el framework FastAPI, se creó una Rest API que simula la conversión entre las monedas CLP, PEN o COP utilizando cryptomonedas de la API pública de Buda.
+
+Se llevan a cabo conversiones utilizando la cryptomoneda como intercambio que otorga el mejor rate.
+
 
 ## Supuestos:
-- Se evaluará en el endpoint pero solo se reciben cyrrencies en mayúscula.
-- No se considera el minimum_order_amount
+- Solo se reciben currencies en mayúscula.
+- No se considera el minimum_order_amount.
 - No se espera que exista un mercado directo CLP-PEN, CLP-COP u otra de las combinaciones de posibles monedas de origen y destino (CLP, PEN o COP)
 - Se espera como máximo 1 intermediario.
 
